@@ -2,6 +2,10 @@
 
 This project implements a semaphore traffic light system using an ESP32-C3 microcontroller with three LEDs (red, yellow, and green).
 
+
+https://github.com/user-attachments/assets/7d31de7f-fff7-4de6-ab26-8fb538d8858c
+
+
 ## Project Overview
 
 The ESP32-C3 controls three LEDs in a sequence that simulates a traffic light:
@@ -23,6 +27,7 @@ graph LR
     B --> E[GND]
     C --> E
     D --> E
+    A -->|GND| E
     style B fill:#ff0000
     style C fill:#ffff00
     style D fill:#00ff00
@@ -35,35 +40,6 @@ graph LR
 - Resistors are not needed, becouse we set 5mA as a current cap on each pin
     thats safe current for leds, that can operate safely between 20-35mA.
 - Breadboard and jumper wires
-
-### Schematic Diagram
-
-```mermaid
-graph TB
-    subgraph ESP32-C3
-        gpio1[GPIO1]
-        gpio2[GPIO2]
-        gpio3[GPIO3]
-        gnd[GND]
-    end
-    
-    subgraph LEDs
-        red[Red LED]
-        yellow[Yellow LED]
-        green[Green LED]
-    end
-    
-    gpio1 -->|220Ω| red
-    gpio2 -->|220Ω| yellow
-    gpio3 -->|220Ω| green
-    red --> gnd
-    yellow --> gnd
-    green --> gnd
-    
-    style red fill:#ff0000
-    style yellow fill:#ffff00
-    style green fill:#00ff00
-```
 
 ## Software Implementation
 
@@ -79,24 +55,15 @@ The project is written in Rust using the `esp-hal` crate. The main loop controls
 - `src/bin/main.rs`: Contains the main application logic
 - `Cargo.toml`: Project dependencies and configuration
 
-## Building and Flashing
+## Flashing
 
-To build and flash this project to your ESP32-C3:
+To flash this project to your ESP32-C3:
 
-1. Install the required tools:
+Build the project:
    ```bash
-   cargo install espflash
+   cargo run --release
    ```
 
-2. Build the project:
-   ```bash
-   cargo build
-   ```
-
-3. Flash to the ESP32-C3:
-   ```bash
-   espflash flash --release
-   ```
 
 ## Timing Sequence
 
