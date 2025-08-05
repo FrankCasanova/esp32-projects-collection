@@ -2,6 +2,10 @@
 
 This project implements a variable rate LED blinking system using an ESP32-C3 microcontroller. The blinking rate can be adjusted by pressing a button connected to the board.
 
+
+https://github.com/user-attachments/assets/dba7d362-6077-4355-b2e3-44c3ec1e8546
+
+
 ## Project Overview
 
 The ESP32-C3 controls an LED with a variable blinking rate that can be adjusted by pressing a button:
@@ -32,29 +36,6 @@ graph LR
     that's safe current for LEDs, that can operate safely between 20-35mA.
 - Breadboard and jumper wires
 
-### Schematic Diagram
-
-```mermaid
-graph TB
-    subgraph ESP32-C3
-        gpio4[GPIO4]
-        gpio0[GPIO0]
-        gnd[GND]
-    end
-    
-    subgraph Components
-        led[LED]
-        button[Button]
-    end
-    
-    gpio4 -->|220Ω| led
-    gpio0 --> button
-    button --> gnd
-    led --> gnd
-    
-    style led fill:#00ff00
-```
-
 ## Software Implementation
 
 The project is written in Rust using the `esp-hal` crate. The main loop controls the LED with a variable delay that can be adjusted by pressing the button:
@@ -73,10 +54,7 @@ The project is written in Rust using the `esp-hal` crate. The main loop controls
 ## Building and Flashing
 
 To flash this project to your ESP32-C3:
-
-
-
-2. Build the project:
+Build the project:
    ```bash
    cargo run --release
    ```
