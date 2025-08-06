@@ -6,7 +6,7 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use defmt::info;
+
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{DriveStrength, Event, Input, InputConfig, Io, Level, Output, OutputConfig, Pull};
 use esp_hal::{handler, main};
