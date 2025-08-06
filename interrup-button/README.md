@@ -37,7 +37,39 @@ graph LR
 
 ## Software Architecture
 
+### Concurrency Safety Concepts
+**1. Layered Resource Protection**
+- 🛡️ `Mutex<RefCell<Option<T>>>` Pattern (GPIO Pins):
+  - *Mutex*: Conference room key (exclusive access)
+  - *RefCell*: Rulebook for temporary modifications
+  - *Option*: Storage box for hardware peripherals
+- 🔢 `Mutex<Cell<T>>` Pattern (Primitives):
+  - Atomic updates like hotel safe deposits
+  - Direct value access without references
+
+**2. Critical Section Workflow**
+```rust
+critical_section::with(|cs| {
+    // 1. Acquire Mutex (get key)
+    // 2. Borrow RefCell (check rulebook)
+    // 3. Access Option (open storage box)
+    // 4. Modify hardware state
+});
+```
+
+**3. Safety Guarantees**
+- 🚫 No data races - Mutex prevents concurrent access
+- ⏱️ Deterministic timing - 500ms debounce window
+- 🔄 Automatic cleanup - Guards released on scope exit
+
+### Implementation Details
 - **Framework**: Rust with `esp-hal` crate
+- **Concurrency Safety**:
+  - `Mutex<RefCell<Option<T>>>` pattern for GPIO pins (non-Copy types)
+    - Like a conference room system: Mutex (room key) → RefCell (rulebook) → Option (storage box)
+  - `Mutex<Cell<T>>` for primitive types (u32, bool)
+    - Atomic access similar to hotel room safe deposits
+  - Critical sections enforce atomic operations (500ms debounce window)
 - **Main Logic**: `src/bin/main.rs`
 - **Concurrency**: Uses `critical-section` and `Mutex` for safe interrupt handling
 - **Features**: 

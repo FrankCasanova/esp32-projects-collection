@@ -24,13 +24,24 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 const DEBOUNCE_DELAY: Duration = Duration::from_millis(500);
 
-// Shared resources protected by critical sections:
-// - GLOBAL_PIN: Stores button instance for interrupt clearing
-// - GLOBAL_FLAG: Communication flag between ISR and main loop
-// - LAST_TRIGGER: Timestamp for debounce timing
+// Shared resources protected by critical sections (Mutex pattern):
+// - GLOBAL_PIN: RefCell<Option<Input>> - Wrapped GPIO input pin (needs RefCell 
+//   because Input isn't Copy and we need mutable access to the Option)
+// - GLOBAL_PIN2: RefCell<Option<Output>> - Wrapped GPIO output pin (same rationale)
+// - GLOBAL_FLAG: Cell<bool> - Simple flag (Cell allows atomic access for primitive types)
+// - LAST_TRIGGER: Cell<Option<Instant>> - Timestamp (Cell handles Option's interior mutability)
+// - COUNT: Cell<u32> - Press counter (Cell provides thread-safe counter for primitive type)
+//
+// Safety architecture:
+// 1. Mutex guarantees exclusive access across threads
+// 2. RefCell enables safe interior mutability for non-Copy types
+// 3. Cell provides atomic access for simple primitives
+// 4. Critical sections enforce atomic operation blocks
 static GLOBAL_PIN: Mutex<RefCell<Option<Input>>> = Mutex::new(RefCell::new(None));
+static GLOBAL_PIN2: Mutex<RefCell<Option<Output>>> = Mutex::new(RefCell::new(None));
 static GLOBAL_FLAG: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static LAST_TRIGGER: Mutex<Cell<Option<Instant>>> = Mutex::new(Cell::new(None));
+static COUNT: Mutex<Cell<u32>> = Mutex::new(Cell::new(0));
 
 // OTHER THREAD
 // Critical sections ensure safe access to shared resources between
@@ -38,16 +49,54 @@ static LAST_TRIGGER: Mutex<Cell<Option<Instant>>> = Mutex::new(Cell::new(None));
 #[handler]
 fn gpio() {
     // Interrupt Service Routine (ISR) - executes when button is pressed:
-    // 1. Enter critical section to safely access shared resources
-    // 2. Clear the interrupt flag to prevent retriggering
-    // 3. Set the global flag to notify main loop
+    // Concurrency Safety Process:
+    // 1. Enter critical section (atomically locks access to shared resources)
+    // 2. Access GPIO pins through layered protection:
+    //    a. Mutex lock: Ensures exclusive access across threads
+    //    b. RefCell borrow: Runtime-checked mutable access to Option-wrapped GPIO
+    //    c. unwrap(): Safe because we initialize before interrupts are enabled
+    // 3. Clear interrupt flag first to prevent retriggering during handling
+    // 4. Update LED state using same protection pattern
+    // 5. Update counter using Cell's atomic access for primitive type
+    // 
+    // Analog: Like a security checkpoint where you must:
+    // 1. Get clearance (critical section)
+    // 2. Check out a shared tool (Mutex+RefCell)
+    // 3. Use the tool (GPIO access)
+    // 4. Check it back in automatically (drop guards)
     critical_section::with(|cs| {
         GLOBAL_PIN
             .borrow_ref_mut(cs)
             .as_mut()
             .unwrap()
             .clear_interrupt();
-        GLOBAL_FLAG.borrow(cs).set(true);        
+        GLOBAL_PIN2
+            .borrow_ref_mut(cs)
+            .as_mut()
+            .unwrap();
+        GLOBAL_FLAG.borrow(cs).set(true);
+        if GLOBAL_FLAG.borrow(cs).get() {
+                // Get current time and last valid trigger timestamp
+                let now = Instant::now();
+                let last_trigger = LAST_TRIGGER.borrow(cs).get();
+                
+                // Check if enough time has passed since last valid press
+                if last_trigger.is_none() || (now - last_trigger.unwrap()) >= DEBOUNCE_DELAY {
+                    // Toggle LED state (safe because we're in critical section)
+                    if GLOBAL_PIN2.borrow_ref_mut(cs).as_mut().unwrap().is_set_high() {
+                        GLOBAL_PIN2.borrow_ref_mut(cs).as_mut().unwrap().set_low();
+                    } else {
+                        GLOBAL_PIN2.borrow_ref_mut(cs).as_mut().unwrap().set_high();
+                    }
+                    GLOBAL_FLAG.borrow(cs).set(false);
+                    let count = COUNT.borrow(cs).get() + 1;
+                    COUNT.borrow(cs).set(count);
+                    println!("Button Press Count = {count}");
+                    LAST_TRIGGER.borrow(cs).set(Some(now));
+                } else {
+                    GLOBAL_FLAG.borrow(cs).set(false);
+                }
+            }        
     })
     // Critical section automatically exits here
 }
@@ -64,49 +113,21 @@ fn main() -> ! {
     
 
     let led_config = OutputConfig::default().with_drive_strength(DriveStrength::_5mA);
-    let mut led = Output::new(peripherals.GPIO4, Level::Low,  led_config);
+    let led = Output::new(peripherals.GPIO4, Level::Low,  led_config);
 
     let input_conf = InputConfig::default().with_pull(Pull::Up);
     let mut button = Input::new(peripherals.GPIO0, input_conf);
 
     button.listen(Event::FallingEdge);
     
-    critical_section::with(|cs|
-        GLOBAL_PIN.borrow_ref_mut(cs).replace(button)
-    );
+    critical_section::with(|cs| {
+        GLOBAL_PIN.borrow_ref_mut(cs).replace(button);
+        GLOBAL_PIN2.borrow_ref_mut(cs).replace(led);
+    });
 
-    let mut count = 0_u32;
+    // let mut count = 0_u32;
     
-    loop {
-        // Main loop critical section:
-        // Safely access shared resources to check button press validity
-        critical_section::with(
-            |cs| {
-            // Check if ISR has detected a button press
-            if GLOBAL_FLAG.borrow(cs).get() {
-                // Get current time and last valid trigger timestamp
-                let now = Instant::now();
-                let last_trigger = LAST_TRIGGER.borrow(cs).get();
-                
-                // Check if enough time has passed since last valid press
-                if last_trigger.is_none() || (now - last_trigger.unwrap()) >= DEBOUNCE_DELAY {
-                    // Toggle LED state (safe because we're in critical section)
-                    if led.is_set_high() {
-                        led.set_low();
-                    } else {
-                        led.set_high();
-                    }
-                    GLOBAL_FLAG.borrow(cs).set(false);
-                    count += 1;
-                    println!("Button Press Count = {count}");
-                    LAST_TRIGGER.borrow(cs).set(Some(now));
-                } else {
-                    GLOBAL_FLAG.borrow(cs).set(false);
-                }
-            }
-            }
-         )
-    }
+    loop {}
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-rc.0/examples/src/bin
 }
