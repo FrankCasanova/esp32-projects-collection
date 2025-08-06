@@ -40,7 +40,7 @@ fn gpio() {
 fn main() -> ! {
     // generator version: 0.5.0
     
-    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
+    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::_80MHz);
     let peripherals = esp_hal::init(config);
 
     let mut io = Io::new(peripherals.IO_MUX);
@@ -54,7 +54,7 @@ fn main() -> ! {
     let mut button = Input::new(peripherals.GPIO0, input_conf);
 
     button.listen(Event::FallingEdge);
-
+    
     critical_section::with(|cs|
         GLOBAL_PIN.borrow_ref_mut(cs).replace(button)
     );
