@@ -37,8 +37,9 @@ graph LR
 - **Main Logic**: `src/bin/main.rs`
 - **Concurrency**: Uses `critical-section` and `Mutex` for safe interrupt handling
 - **Features**: 
+  - Button debouncing with 500ms delay
   - Falling edge interrupt detection
-  - LED state inversion on press
+  - LED toggle using hardware-optimized method
   - UART logging via `defmt` and `esp-println`
 
 ## Build & Deployment
@@ -51,9 +52,10 @@ cargo run --release
 ## Functionality
 
 1. LED starts in OFF state
-2. Each button press:
-   - Toggles LED state
+2. Each validated button press (with 50ms debounce):
+   - Toggles LED state using hardware-optimized toggle()
    - Increments and prints press count
+   - Ignores mechanical bounce artifacts
 3. Uses 5mA drive strength for LED output
 
 ## License

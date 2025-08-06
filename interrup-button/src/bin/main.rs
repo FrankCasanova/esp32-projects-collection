@@ -16,12 +16,16 @@ use {esp_backtrace as _, esp_println as _};
 use critical_section::Mutex;
 use core::cell::{RefCell, Cell};
 
+
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
 esp_bootloader_esp_idf::esp_app_desc!();
 
+const DEBOUNCE_DELAY: Duration = Duration::from_millis(500);
+
 static GLOBAL_PIN: Mutex<RefCell<Option<Input>>> = Mutex::new(RefCell::new(None));
 static GLOBAL_FLAG: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
+static LAST_TRIGGER: Mutex<Cell<Option<Instant>>> = Mutex::new(Cell::new(None));
 
 // OTHER THREAD
 #[handler]
@@ -64,21 +68,26 @@ fn main() -> ! {
     loop {
         critical_section::with(
             |cs| {
-                if GLOBAL_FLAG.borrow(cs).get() {
-                    GLOBAL_FLAG.borrow(cs).set(false);
-                    count += 1;
-                    println!("Button Press Count = {count}");
+            if GLOBAL_FLAG.borrow(cs).get() {
+                let now = Instant::now();
+                let last_trigger = LAST_TRIGGER.borrow(cs).get();
+                if last_trigger.is_none() || (now - last_trigger.unwrap()) >= DEBOUNCE_DELAY {
                     if led.is_set_high() {
                         led.set_low();
                     } else {
                         led.set_high();
                     }
+                    GLOBAL_FLAG.borrow(cs).set(false);
+                    count += 1;
+                    println!("Button Press Count = {count}");
+                    LAST_TRIGGER.borrow(cs).set(Some(now));
+                } else {
+                    GLOBAL_FLAG.borrow(cs).set(false);
                 }
+            }
             }
          )
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-rc.0/examples/src/bin
 }
-
-
