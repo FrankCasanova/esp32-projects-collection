@@ -17,27 +17,39 @@ use critical_section::Mutex;
 use core::cell::{RefCell, Cell};
 
 
+
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
 esp_bootloader_esp_idf::esp_app_desc!();
 
 const DEBOUNCE_DELAY: Duration = Duration::from_millis(500);
 
+// Shared resources protected by critical sections:
+// - GLOBAL_PIN: Stores button instance for interrupt clearing
+// - GLOBAL_FLAG: Communication flag between ISR and main loop
+// - LAST_TRIGGER: Timestamp for debounce timing
 static GLOBAL_PIN: Mutex<RefCell<Option<Input>>> = Mutex::new(RefCell::new(None));
 static GLOBAL_FLAG: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static LAST_TRIGGER: Mutex<Cell<Option<Instant>>> = Mutex::new(Cell::new(None));
 
 // OTHER THREAD
+// Critical sections ensure safe access to shared resources between
+// the main code and interrupt handlers by temporarily disabling interrupts
 #[handler]
 fn gpio() {
+    // Interrupt Service Routine (ISR) - executes when button is pressed:
+    // 1. Enter critical section to safely access shared resources
+    // 2. Clear the interrupt flag to prevent retriggering
+    // 3. Set the global flag to notify main loop
     critical_section::with(|cs| {
-    GLOBAL_PIN
+        GLOBAL_PIN
             .borrow_ref_mut(cs)
             .as_mut()
             .unwrap()
             .clear_interrupt();
-    GLOBAL_FLAG.borrow(cs).set(true);        
+        GLOBAL_FLAG.borrow(cs).set(true);        
     })
+    // Critical section automatically exits here
 }
 
 #[main]
@@ -66,12 +78,19 @@ fn main() -> ! {
     let mut count = 0_u32;
     
     loop {
+        // Main loop critical section:
+        // Safely access shared resources to check button press validity
         critical_section::with(
             |cs| {
+            // Check if ISR has detected a button press
             if GLOBAL_FLAG.borrow(cs).get() {
+                // Get current time and last valid trigger timestamp
                 let now = Instant::now();
                 let last_trigger = LAST_TRIGGER.borrow(cs).get();
+                
+                // Check if enough time has passed since last valid press
                 if last_trigger.is_none() || (now - last_trigger.unwrap()) >= DEBOUNCE_DELAY {
+                    // Toggle LED state (safe because we're in critical section)
                     if led.is_set_high() {
                         led.set_low();
                     } else {
