@@ -2,6 +2,10 @@
 
 This project implements a voltage measurement system using an ESP32-C3 microcontroller with progressive LED indicators. It reads analog voltage from GPIO0 and lights up LEDs progressively based on the measured voltage.
 
+
+https://github.com/user-attachments/assets/050bd6b0-88f3-438b-9645-54e28fcd2cde
+
+
 ## Project Overview
 
 The ESP32-C3 reads analog voltage from GPIO0 and controls six LEDs to indicate the voltage level:
@@ -23,13 +27,14 @@ The following diagram shows how to connect the LEDs to the ESP32-C3:
 
 ```mermaid
 graph LR
-    A[ESP32-C3] -->|GPIO2| B(Green LED1)
-    A -->|GPIO3| C(Green LED2)
-    A -->|GPIO7| D(Green LED3)
+    A[ESP32-C3] -->|GPIO1| B(Green LED1)
+    A -->|GPIO2| C(Green LED2)
+    A -->|GPIO3| D(Green LED3)
     A -->|GPIO4| E(Yellow LED1)
     A -->|GPIO5| F(Yellow LED2)
     A -->|GPIO6| G(Red LED)
     A -->|GPIO0| H(Voltage Input)
+    A -->|VCC| H
     B --> I[GND]
     C --> I
     D --> I
