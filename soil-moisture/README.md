@@ -2,6 +2,10 @@
 
 This project implements a soil moisture monitoring system using an ESP32-C3 microcontroller with an analog soil moisture sensor.
 
+
+https://github.com/user-attachments/assets/9b83d212-cf40-4289-afd8-4d71f092c654
+
+
 ## Project Overview
 
 The ESP32-C3 reads soil moisture values from an analog sensor and categorizes them into three states:
@@ -17,17 +21,15 @@ The following diagram shows how to connect the soil moisture sensor to the ESP32
 
 ```mermaid
 graph LR
-    A[ESP32-C3] -->|GPIO4| B(Soil Moisture Sensor)
-    A -->|3.3V| C(VCC)
-    A -->|GND| D(GND)
-    B -->|VCC| C
-    B -->|GND| D
+    A[Soil Moisture Sensor] -->|3.3V| B(ESP32-C3)
+    A -->|GPIO4| B
+    A -->|GND| B
     style B fill:#8fbc8f
 ```
 
 ### Components Required
 - 1x ESP32-C3 development board
-- 1x Analog soil moisture sensor
+- 1x Capacitive soil moisture sensor
 - Breadboard and jumper wires
 - Micro USB cable for programming and power
 
