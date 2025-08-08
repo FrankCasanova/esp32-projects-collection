@@ -18,7 +18,6 @@ graph LR
     A[ESP32-C3] -->|GPIO0| B(Start Button)
     A -->|GPIO1| C(Pause Button)
     A -->|GPIO2| D(Reset Button)
-    A -->|UART0| E(Serial Monitor)
     B --> F[GND]
     C --> F
     D --> F
