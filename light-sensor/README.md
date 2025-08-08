@@ -2,6 +2,10 @@
 
 This project uses an ESP32-C3 microcontroller to read light levels from an LDR sensor and control LEDs based on the measured brightness.
 
+
+https://github.com/user-attachments/assets/f5a00a0d-c88c-46e9-ba52-03a3ef3083a9
+
+
 ## Project Overview
 
 The ESP32-C3 reads analog values from an LDR sensor and controls three LEDs:
@@ -22,8 +26,11 @@ graph LR
     A -->|GND| C(LDR GND)
     A -->|GPIO4| D(LDR AO)
     A -->|GPIO1| E(LED1)
+    A -->|GND| E
     A -->|GPIO2| F(LED2)
+    A -->|GND| F
     A -->|GPIO3| G(LED3)
+    A -->|GND| G
     style E fill:#ff0000
     style F fill:#00ff00
     style G fill:#0000ff
