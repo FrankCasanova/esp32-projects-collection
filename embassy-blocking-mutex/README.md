@@ -49,10 +49,13 @@ Our [`src/bin/main.rs`](src/bin/main.rs) implements these concepts:
 
 ### 1. Shared State Setup
 ```rust
-static SHARED: Mutex<CriticalSectionRawMutex, RefCell<u32>> = 
-    Mutex::new(RefCell::new(0));
+static SHARED: Mutex<CriticalSectionRawMutex, Cell<u32>> = 
+    Mutex::new(Cell::new(0));
 ```
 - Like reserving a shared whiteboard in the conference room
+- Using `Cell` instead of `RefCell` is more efficient for primitive types (u32)
+  - Avoids runtime borrow checking overhead
+  - Uses simple get/set operations
 
 ### 2. Async Task (Background Counter)
 ```rust

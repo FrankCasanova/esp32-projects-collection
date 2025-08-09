@@ -19,7 +19,7 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use core::cell::RefCell;
+use core::cell::{RefCell, Cell};
 
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -47,8 +47,8 @@ esp_bootloader_esp_idf::esp_app_desc!();
 // Think of this as a shared whiteboard in a conference room:
 // - The mutex ensures only one task can "use the room" at a time
 // - CriticalSectionRawMutex uses hardware interrupts for safety
-// - RefCell provides interior mutability (safe mutation through shared reference)
-static SHARED: Mutex<CriticalSectionRawMutex, RefCell<u32>,> =Mutex::new(RefCell::new(0));
+// - Cell provides interior mutability for Copy types (more efficient than RefCell)
+static SHARED: Mutex<CriticalSectionRawMutex, Cell<u32>> = Mutex::new(Cell::new(0));
 
 // Async task: Runs independently in the background
 // Think of this as a speaker who periodically updates the shared whiteboard
@@ -58,13 +58,13 @@ async fn async_task() {
         // Lock the mutex to access the shared counter
         // Like requesting exclusive access to the conference room
         SHARED.lock(|f|{
-            let val = f.borrow_mut().wrapping_add(1);
-            f.replace(val);
+            let val = f.get().wrapping_add(1);
+            f.set(val);
             println!("THREAD: {val}") // Show current value
         });
         
         // Non-blocking delay: "Take a break" for 1 second
-        // While waiting, other tasks can run (like letting another speaker talk)
+        // While waiting, other tasks can run (like letting another speaker talk)https://www.youtube.com/watch?v=515I8lyJVCQ
         Timer::after(Duration::from_millis(1000)).await;
     }
 }
@@ -87,13 +87,13 @@ async fn main(spawner: Spawner) {
 
     // Main loop: Periodically check the shared value
     loop {
-        
+
         // Wait 5 seconds without blocking other tasks
         Timer::after_millis(5000).await;
         
         // Briefly lock the mutex to read the shared value
         SHARED.lock(|f|{
-            let val = f.clone().into_inner(); 
+            let val = f.get(); 
             println!("MAIN: {val}"); // Report current value
         });
     }
