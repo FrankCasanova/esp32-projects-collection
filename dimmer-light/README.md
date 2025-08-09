@@ -2,7 +2,11 @@
 
 This project controls the brightness of an LED using a potentiometer with an ESP32-C3 microcontroller.
 
-![LED Dimmer Circuit](https://github.com/user-attachments/assets/7d31de7f-fff7-4de6-ab26-8fb538d8858c)
+
+
+https://github.com/user-attachments/assets/54a99511-7957-4cf6-8e1c-1b2f0d7babb5
+
+
 
 ## Project Overview
 
