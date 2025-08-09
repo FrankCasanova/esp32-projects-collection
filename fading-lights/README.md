@@ -4,6 +4,10 @@ This project implements a fading LED sequence using an ESP32-C3 microcontroller 
 
 
 
+https://github.com/user-attachments/assets/b0d40728-40db-48ec-a414-cad42a496808
+
+
+
 ## Project Overview
 
 The ESP32-C3 controls three LEDs in a fading sequence:
