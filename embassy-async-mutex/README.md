@@ -44,13 +44,13 @@ sequenceDiagram
     participant Background Task
     participant Mutex
     
-    Main Task->>+Mutex: Timer await (5s)
+    Main Task->>Mutex: Timer await (5s)
     Background Task->>Mutex: Lock acquired
     Background Task->>Mutex: Update value
-    Background Task->>-Mutex: Lock released
-    Main Task->>+Mutex: Lock acquired
+    Background Task->>Mutex: Lock released
+    Main Task->>Mutex: Lock acquired
     Main Task->>Mutex: Read value
-    Main Task->>-Mutex: Lock released
+    Main Task->>Mutex: Lock released
 ```
 
 ### Blocking Flow: Lock Before Timer
@@ -60,12 +60,12 @@ sequenceDiagram
     participant Background Task
     participant Mutex
     
-    Main Task->>+Mutex: Lock acquired
+    Main Task->>Mutex: Lock acquired
     Main Task->>Mutex: Read value
     Main Task->>Mutex: Timer await (5s)
     Background Task-->>Mutex: Waiting...
     Background Task-->>Mutex: Still waiting...
-    Main Task->>-Mutex: Lock released (after 5s)
+    Main Task->>Mutex: Lock released (after 5s)
     Background Task->>Mutex: Finally gets lock
 ```
 
