@@ -19,13 +19,11 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use core::cell::{RefCell, Cell};
-
-
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::blocking_mutex::Mutex;
+use core::cell::Cell;
 use defmt::info;
 use embassy_executor::Spawner;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::blocking_mutex::Mutex;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
 use esp_hal::timer::systimer::SystemTimer;
@@ -42,7 +40,6 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
 esp_bootloader_esp_idf::esp_app_desc!();
 
-
 // Shared state: A counter protected by a mutex
 // Think of this as a shared whiteboard in a conference room:
 // - The mutex ensures only one task can "use the room" at a time
@@ -57,12 +54,12 @@ async fn async_task() {
     loop {
         // Lock the mutex to access the shared counter
         // Like requesting exclusive access to the conference room
-        SHARED.lock(|f|{
+        SHARED.lock(|f| {
             let val = f.get().wrapping_add(1);
             f.set(val);
             println!("THREAD: {val}") // Show current value
         });
-        
+
         // Non-blocking delay: "Take a break" for 1 second
         // While waiting, other tasks can run (like letting another speaker talk)https://www.youtube.com/watch?v=515I8lyJVCQ
         Timer::after(Duration::from_millis(1000)).await;
@@ -87,17 +84,15 @@ async fn main(spawner: Spawner) {
 
     // Main loop: Periodically check the shared value
     loop {
-
         // Wait 5 seconds without blocking other tasks
         Timer::after_millis(5000).await;
-        
+
         // Briefly lock the mutex to read the shared value
-        SHARED.lock(|f|{
-            let val = f.get(); 
+        SHARED.lock(|f| {
+            let val = f.get();
             println!("MAIN: {val}"); // Report current value
         });
     }
-
 
     // For more examples: https://github.com/esp-rs/esp-hal
 }
