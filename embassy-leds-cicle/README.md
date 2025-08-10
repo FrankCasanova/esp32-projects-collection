@@ -1,6 +1,10 @@
 # ESP32-C3 LED Controller with Async Button Handling
 
-![LED Animation Demo](https://example.com/led-demo.gif) *Example LED pattern (Knight Rider style)*
+
+
+https://github.com/user-attachments/assets/3d58bf0d-26d1-487c-841c-6f16513e8c4b
+
+
 
 ## 🎯 Project Overview
 This project demonstrates asynchronous programming on ESP32-C3 microcontrollers using Embassy-rs. It features:
