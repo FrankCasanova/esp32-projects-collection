@@ -53,7 +53,7 @@ impl TimeSource for DummyTimesource {
 async fn main(spawner: Spawner) {
     // generator version: 0.5.0
 
-    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
+    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::_80MHz);
     let peripherals = esp_hal::init(config);
 
     let timer0 = SystemTimer::new(peripherals.SYSTIMER);
@@ -68,14 +68,14 @@ async fn main(spawner: Spawner) {
         .with_mode(Mode::_0);
     let spi_bus = Spi::new(peripherals.SPI2, spi_config)
         .unwrap()
-        .with_sck(peripherals.GPIO4)
+        .with_miso(peripherals.GPIO4)
         .with_mosi(peripherals.GPIO5)
-        .with_miso(peripherals.GPIO8)
+        .with_sck(peripherals.GPIO6)
         .into_async();
     println!("[INIT] SPI communication channel configured");
 
     // Connecting the SD card storage machine to our SPI conveyor belt
-    let sd_cs = Output::new(peripherals.GPIO7, Level::High, OutputConfig::default());
+    let sd_cs = Output::new(peripherals.GPIO0, Level::High, OutputConfig::default());
     let spi_dev = ExclusiveDevice::new(spi_bus, sd_cs, Delay).expect("[ERROR] bad spi_dev setting");
     // Build an SD Card interface out of an SPI device, a chip-select pin and the delay object
     let sdcard = SdCard::new(spi_dev, Delay);
@@ -92,7 +92,9 @@ async fn main(spawner: Spawner) {
     let root_dir = volume0.open_root_dir().unwrap();
     // Open a file called "MY_FILE.TXT" in the root directory
     // This mutably borrows the directory.
-    let my_file = root_dir.open_file_in_dir("MY_FILE.TXT", embedded_sdmmc::Mode::ReadOnly).unwrap();
+    let my_file = root_dir
+        .open_file_in_dir("sentence.txt", embedded_sdmmc::Mode::ReadOnly)
+        .unwrap();
     // Print the contents of the file, assuming it's in ISO-8859-1 encoding
     while !my_file.is_eof() {
         let mut buffer = [0u8; 32];
@@ -102,6 +104,21 @@ async fn main(spawner: Spawner) {
         }
     }
 
+    my_file.close().unwrap();
+    
+
+    info!("SAVING FILE");
+    let my_other_file = root_dir
+        .open_file_in_dir(
+            "sentence.txt",
+            embedded_sdmmc::Mode::ReadWriteCreateOrAppend,
+        )
+        .unwrap();
+    my_other_file.write(b"ajam...\n").unwrap();
+    // Don't forget to flush the file so that the directory entry is updated
+    my_other_file.flush().unwrap();
+    my_other_file.close().unwrap();
+    info!("FILE SAVED");
     // TODO: Spawn some tasks
     let _ = spawner;
 
