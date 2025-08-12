@@ -15,6 +15,7 @@ The ESP32-C3 controls three LEDs in a fading sequence:
 2. Yellow LED fades in over 2 seconds
 3. Green LED fades in over 2 seconds
 4. All LEDs fade out in sequence over 0.5 seconds each
+5. The device enters light sleep mode for 10 seconds between cycles
 
 The cycle then repeats indefinitely.
 
@@ -75,7 +76,8 @@ cargo run --release
 | Red    | Out            | 0.5 seconds |
 | Yellow | Out            | 0.5 seconds |
 | Green  | Out            | 0.5 seconds |
-| **Total Cycle** | | **7.5 seconds** |
+| Sleep  | Light Sleep    | 10 seconds |
+| **Total Cycle** | | **17.5 seconds** |
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
