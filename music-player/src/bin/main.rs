@@ -139,11 +139,17 @@ async fn main(spawner: Spawner) {
 
     // Connecting the SD card storage machine to our SPI conveyor belt
     let sd_cs = Output::new(peripherals.GPIO0, Level::High, OutputConfig::default());
-    let spi_dev = ExclusiveDevice::new(spi_bus, sd_cs, Delay).expect("[ERROR] bad spi_dev setting");
+    let spi_dev = ExclusiveDevice::new(spi_bus, sd_cs, Delay)
+        .unwrap();
+    info!("SPI_DEV");
     // Build an SD Card interface out of an SPI device, a chip-select pin and the delay object
     let sdcard = SdCard::new(spi_dev, Delay);
+    info!("SDCARD");
+
     // Get the card size (this also triggers card initialisation because it's not been done yet)
-    println!("Card size is {} bytes", sdcard.num_bytes().unwrap());
+    println!("Card size is {} bytes", sdcard.num_bytes().expect("critical error"));
+    info!("SDCARD.NU_BYTES");
+
     // Now let's look for volumes (also known as partitions) on our block device.
     // To do this we need a Volume Manager. It will take ownership of the block device.
     let volume_mgr = VolumeManager::new(sdcard, DummyTimesource::default());
@@ -194,8 +200,8 @@ async fn main(spawner: Spawner) {
     // NOTE: the exact return-order of `dma_buffers!` macro differs between esp-hal versions;
     // the common pattern below matches many examples—if your compiler errors about tuple ordering,
     // swap the order as the compiler suggests.
-    let (mut tx_buffer, mut tx_descriptors, _rx_buffer, mut rx_descriptors) =
-        dma_buffers!(16_384usize, 16_384usize);
+    let (mut tx_buffer, mut tx_descriptors, _,  _) =
+        dma_buffers!(8192usize, 0);
     // Configure DMA channel - use DMA channel 0 (common on examples)
     let dma_channel = peripherals.DMA_CH0; // if your version exposes this differently, adapt.
                                            // Build DmaTxBuf object from descriptors + buffer (API in esp-hal)
@@ -225,34 +231,39 @@ async fn main(spawner: Spawner) {
     // PCM streaming loop
     // ------------------------
     // read chunks from file, convert bytes -> i16 little-endian samples
-    let mut raw_buf = [0u8; 16384];
+    // Define a chunk size for reading. 4096 is a good value.
+    const CHUNK_SIZE: usize = 4096;
+
     loop {
-        let read = my_file.read(&mut raw_buf).unwrap();
-        if read == 0 {
+        // Read a chunk from the file directly into the DMA buffer.
+        // We use a slice of tx_buffer to act as our temporary read buffer.
+        let bytes_read = my_file.read(&mut tx_buffer[..CHUNK_SIZE]).unwrap();
+
+        if bytes_read == 0 {
+            // End of file
             break;
         }
+        
+        // Ensure we only process the bytes we actually read.
+        let buffer_to_play = &tx_buffer[..bytes_read];
 
-        // For 16-bit PCM stereo, WAV data is little-endian i16 interleaved L/R.
-        // Convert raw bytes -> slice of i16 samples (safe if n is even)
-        let samples_count = read / 2;
-        // Ensure even number of bytes
-        let samples: &[i16] =
-            unsafe { core::slice::from_raw_parts(raw_buf.as_ptr() as *const i16, samples_count) };
-
-        // Send samples to I2S DMA transmit buffer in chunks:
-        let mut pos = 0usize;
-        while pos < samples_count {
-            let to_send = core::cmp::min(16384, samples_count - pos);
-            // Write slice -> (API might be tx.send, tx.write or tx.write_frames)
-            // Try a common name first; if your compiler errors, replace `tx.write_frames(...)` with the method suggested.
-            i2s_tx
-                .write_words(&samples[pos..pos + to_send])
-                .unwrap();
-            pos += to_send;
-        }
+        // The I2S write function expects samples (i16), not bytes (u8).
+        // This unsafe block is generally safe here because we know the source is 16-bit PCM
+        // and have ensured `bytes_read` will be a multiple of 2.
+        let samples: &[i16] = unsafe {
+            core::slice::from_raw_parts(
+                buffer_to_play.as_ptr() as *const i16,
+                buffer_to_play.len() / 2, // Each sample is 2 bytes
+            )
+        };
+        
+        // Write the chunk of samples. This function will wait until there's space
+        // in the DMA buffer, but because we're using smaller chunks, the waits
+        // will be short and frequent, preventing underruns.
+        i2s_tx.write_words(samples).unwrap();
     }
-    my_file.close().unwrap();
 
+    my_file.close().unwrap();
     println!("Playback finished (end of file).");
 
     let _ = spawner;
@@ -263,5 +274,5 @@ async fn main(spawner: Spawner) {
         // Timer::after(Duration::from_secs(1)).await;
     }
 
-    // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-rc.0/examples/src/bin
+    // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-rc.0/examples/src/b
 }
