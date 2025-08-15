@@ -81,7 +81,7 @@ async fn main(spawner: Spawner) {
     let i2s = I2s::new(
         peripherals.I2S0,
         Standard::Philips,
-        DataFormat::Data16Channel16,
+        DataFormat::Data8Channel8,
         Rate::from_hz(44100),
         dma_channel,
     );
