@@ -7,6 +7,7 @@
 )]
 
 use core::cell::RefCell;
+use core::sync::atomic::{AtomicBool, Ordering};
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_time::{Delay, Duration, Timer};
@@ -20,6 +21,10 @@ use esp_hal::time::Rate;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_println::{self as _, println};
 use wav_hex_player::audios::{FAIRY_CAUTION, WAV_DATA};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::mutex::Mutex;
+use esp_hal::i2s::master::I2sTx;
+use esp_hal::Blocking;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -34,6 +39,73 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 const HEADER_SIZE: usize = 44;
 const DMA_BUFFER_SIZE: usize = 65472; // Or whatever size dma_buffers! creates 4 * 4092 * 4
+static AUDIO_MACHINE: Mutex<CriticalSectionRawMutex, Option<I2sTx<'static, Blocking>>> = 
+    Mutex::new(None);
+static AUDIO_ENABLED: AtomicBool = AtomicBool::new(false);
+
+#[embassy_executor::task]
+async fn audio(
+    audio_machine: &'static Mutex<CriticalSectionRawMutex, Option<I2sTx<'static, Blocking>>>, 
+    tx_buffer: &'static mut [u8]
+) {
+    let pcm_data = &FAIRY_CAUTION[HEADER_SIZE..]; 
+    let pcm_len = pcm_data.len();
+    println!("PCM Length: {}", pcm_len);
+
+    loop {
+        // Check if audio playback is enabled based on temperature
+        let is_enabled = AUDIO_ENABLED.load(Ordering::Relaxed);
+
+        if is_enabled {
+            println!("Temperature condition met. Starting audio playback...");
+            
+            let mut offset = 0;
+            // Play the entire audio clip in chunks
+            while offset < pcm_len {
+                let chunk_size = core::cmp::min(DMA_BUFFER_SIZE, pcm_len - offset);
+                println!("offset: {offset}");
+
+                // Copy PCM data to the DMA buffer
+                tx_buffer[..chunk_size]
+                    .copy_from_slice(&pcm_data[offset..offset + chunk_size]);
+
+                // Zero-pad the rest of the buffer if necessary
+                if chunk_size < DMA_BUFFER_SIZE {
+                    tx_buffer[chunk_size..].fill(0);
+                }
+
+                // Perform the DMA transfer
+                let mut transfer_guard = audio_machine.lock().await;
+                if let Some(i2s_tx) = transfer_guard.as_mut() {
+                    // Start transfer and wait for completion
+                    i2s_tx.write_dma(&tx_buffer)
+                        .unwrap()
+                        .wait()
+                        .unwrap();
+                }
+                // Release the lock as soon as possible
+                drop(transfer_guard); 
+
+                offset += chunk_size;
+
+                // Optional: Small delay between chunks if needed
+                // Timer::after_micros(10).await; 
+            }
+            println!("Audio playback finished for this loop.");
+            // Optional: Add a small delay before checking the condition again
+            // to avoid playing back-to-back immediately if the clip is short.
+            // Timer::after_millis(100).await;
+            if offset >= pcm_len {
+                AUDIO_ENABLED.store(false, Ordering::Relaxed);
+            }
+        } else {
+            // If not enabled, wait a bit before checking again to avoid busy waiting
+            Timer::after_millis(500).await; 
+        }
+        // Small delay at the end of the loop to prevent excessive checking
+        // Timer::after_millis(100).await; 
+    }
+}
 
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
@@ -69,66 +141,26 @@ async fn main(spawner: Spawner) {
         dma_channel,
     );
     let i2s = i2s.with_mclk(peripherals.GPIO0); // MCLK not used but required by driver
-    let mut i2s_tx = i2s
+    let i2s_tx: esp_hal::i2s::master::I2sTx<'_, esp_hal::Blocking> = i2s
         .i2s_tx
         .with_bclk(peripherals.GPIO1)
         .with_ws(peripherals.GPIO2)
         .with_dout(peripherals.GPIO3)
         .build(tx_descriptors);
 
-    // Start DMA transfer with the pre-filled buffer
-    println!("Starting DMA transfer with GPIOs:");
-    println!("- MCLK: GPIO0 (unused)");
-    println!("- BCLK: GPIO1");
-    println!("- WS:   GPIO2");
-    println!("- DOUT: GPIO3");
+    {
+        *(AUDIO_MACHINE.lock().await) = Some(i2s_tx);
+    }
 
-    let pcm_data = &FAIRY_CAUTION[HEADER_SIZE..]; //30 wave data starting from 4 (header)
-    // println!("PCM_DATA: {pcm_data:?}");
-    let pcm_len = pcm_data.len(); // 26
-    println!("PCM LENGHT: {pcm_len}");
-    let mut offset = 0; //first iteration is 0, the second is 3
-    println!("Starting audio playback...");
-    // TODO: Spawn some tasks
-    let _ = spawner;
-    
-    // let transfer = i2s_tx.write_dma(&tx_buffer).unwrap();
-    // transfer.wait().unwrap();
-    // Now keep the main task alive but do NOT restart transfer inside the loop
+    spawner.spawn(audio(&AUDIO_MACHINE, tx_buffer)).unwrap();
+    AUDIO_ENABLED.store(true, Ordering::Relaxed);
+    println!("{}", AUDIO_ENABLED.load(Ordering::Relaxed));
     loop {
-        while offset < pcm_len {
-            // println!("OFFSET: {offset}");
-            // Calculate how much data to copy for this chunk
-            let chunk_size = core::cmp::min(DMA_BUFFER_SIZE, pcm_len - offset); //3 or the rest (is a container)
-            // println!("CHUNK SIZE: {chunk_size}");
-            // Fill the buffer with the current chunk (simple byte copy for now, assuming correct format)
-            // TODO: Adapt this if your WAV data needs specific parsing (e.g., u16->bytes)
-            // tx_buffer is 3, first iteration is from 0 to 3, 3 to 6, 6 to 9
-            tx_buffer[..chunk_size].copy_from_slice(&pcm_data[offset..offset + chunk_size]);
-        
-            // Optional: Zero-pad the rest of the buffer if chunk is smaller
-            if chunk_size < DMA_BUFFER_SIZE {
-                tx_buffer[chunk_size..].fill(0);
-            }
-        
-            // Start the DMA transfer for this chunk
-            let transfer = i2s_tx.write_dma(&tx_buffer).unwrap();
-            
-        
-            // IMPORTANT: Wait for this chunk to finish transferring
-            transfer.wait().unwrap();
-        
-            // Move to the next chunk
-            // 0, 3, 6, 9
-            offset += chunk_size;
-        
-            // Optional: Small delay if needed, though DMA timing usually handles gaps
-            // Timer::after_micros(10).await;
-        }
-        info!("AUDIO FINISHED");
-        offset = 0;
-        
         Timer::after_secs(30).await;
+        AUDIO_ENABLED.store(true, Ordering::Relaxed);
+        println!("{}", AUDIO_ENABLED.load(Ordering::Relaxed));
+        Timer::after_secs(10).await;
+        AUDIO_ENABLED.store(false, Ordering::Relaxed);
     }
 }
 
