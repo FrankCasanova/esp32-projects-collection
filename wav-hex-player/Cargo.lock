@@ -1261,6 +1261,7 @@ dependencies = [
  "esp-hal",
  "esp-hal-embassy",
  "esp-println",
+ "nb 1.1.0",
  "static_cell",
 ]
 

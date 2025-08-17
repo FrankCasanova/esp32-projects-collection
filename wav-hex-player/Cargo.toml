@@ -28,7 +28,7 @@ esp-alloc = { version = "0.8.0", features = ["defmt"] }
 esp-hal-embassy = { version = "0.9.0", features = ["defmt", "esp32c3"] }
 esp-println = { version = "0.15.0", features = ["defmt-espflash", "esp32c3"] }
 static_cell = "2.1.1"
-
+nb = "1.1.0"
 
 
 [profile.dev]
