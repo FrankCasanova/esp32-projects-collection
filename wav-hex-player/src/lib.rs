@@ -1,6 +1,19 @@
 #![no_std]
 
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::signal::Signal;
+
 pub mod audios;
+pub mod audio_task;
+
+
+pub const HEADER_SIZE: usize = 44;
+pub const DMA_BUFFER_SIZE: usize = 65472;
+
+pub static AUDIO_TRIGGER: Signal<CriticalSectionRawMutex, ()> = Signal::new(); 
+
+
+
 
 // // Fill DMA buffer with a stereo square wave at a given frequency
 // fn fill_square_wave(buffer: &mut [u8], freq_hz: u32, sample_rate: u32) {
