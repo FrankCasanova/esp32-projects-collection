@@ -2,9 +2,15 @@
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
+use embassy_sync::mutex::Mutex;
 
 pub mod audios;
 pub mod audio_task;
+
+pub use audios::AudioClip;
+
+pub static CURRENT_AUDIO: Mutex<CriticalSectionRawMutex, AudioClip> = 
+    Mutex::new(AudioClip::FairyCaution); // Default to fairy audio
 
 
 pub const HEADER_SIZE: usize = 44;

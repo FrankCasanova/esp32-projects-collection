@@ -21,7 +21,7 @@ use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::Blocking;
 use esp_println::{self as _, println};
 use wav_hex_player::audio_task::audio;
-use wav_hex_player::{AUDIO_TRIGGER, DMA_BUFFER_SIZE};
+use wav_hex_player::{AudioClip, CURRENT_AUDIO, AUDIO_TRIGGER, DMA_BUFFER_SIZE};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -90,12 +90,23 @@ async fn main(spawner: Spawner) {
         
         // Check state transition to dry
         while is_dry && prev_moisture.map(|prev| prev <= 3200).unwrap_or(true) {
+            // Set audio to fairy caution for dry condition
+            {
+                let mut guard = CURRENT_AUDIO.lock().await;
+                *guard = AudioClip::FairyCaution;
+            }
             AUDIO_TRIGGER.signal(());
             info!("SIGNAL SENT");
             info!("Plant needs water (value: {})", lecture);
             Timer::after_secs(10).await
         }
-
+        
+        // Set audio to wav audio for wet condition
+        if !is_dry {
+            let mut guard = CURRENT_AUDIO.lock().await;
+            *guard = AudioClip::WavAudio;
+        }
+        
         prev_moisture = Some(lecture); // Update state
         println!("{}", prev_moisture.unwrap())
     }

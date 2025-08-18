@@ -4,7 +4,8 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use crate::audios::FAIRY_CAUTION;
+use crate::audios::{AudioClip, FAIRY_CAUTION, WAV_DATA};
+use crate::CURRENT_AUDIO;
 use defmt::info;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
@@ -23,7 +24,17 @@ pub async fn audio(
     audio_machine: &'static Mutex<CriticalSectionRawMutex, Option<I2sTx<'static, Blocking>>>,
     tx_buffer: &'static mut [u8],
 ) {
-    let pcm_data = &FAIRY_CAUTION[HEADER_SIZE..];
+    // Get current audio selection
+    let current_audio = {
+        let guard = CURRENT_AUDIO.lock().await;
+        *guard
+    };
+
+    // Select audio clip based on current selection
+    let pcm_data = match current_audio {
+        AudioClip::FairyCaution => &FAIRY_CAUTION[HEADER_SIZE..],
+        AudioClip::WavAudio => &WAV_DATA[HEADER_SIZE..],
+    };
     let pcm_len = pcm_data.len();
     println!("PCM Length: {}", pcm_len);
 
