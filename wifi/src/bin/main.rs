@@ -43,6 +43,34 @@ esp_bootloader_esp_idf::esp_app_desc!();
 const SSID: &str = "sagemcomD440";
 const PASSWORD: &str = "QMN2Q2YWUWMXEM";
 
+/// Check if current time is within operational window (9:30am to 11:30pm)
+async fn check_time_window(stack: Stack<'_>, tls_seed: u64) -> bool {
+    if let Some(datetime) = access_website(stack, tls_seed).await {
+        // Parse the time string (format "HH:MM:SS")
+        let mut parts = heapless::Vec::<&str, 3>::new();
+        for part in datetime.split(':') {
+            if parts.push(part).is_err() {
+                return false;
+            }
+        }
+        
+        if parts.len() != 3 {
+            return false;
+        }
+        
+        if let (Ok(hours), Ok(minutes)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
+            if hours > 23 || minutes > 59 {
+                return false;
+            }
+            
+            let total_minutes = hours * 60 + minutes;
+            // 9:30am = 570 minutes, 11:30pm = 1380 minutes
+            return total_minutes >= 570 && total_minutes <= 1380;
+        }
+    }
+    false
+}
+
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
     // generator version: 0.3.1
@@ -57,12 +85,6 @@ async fn main(spawner: Spawner) {
     info!("Embassy initialized!");
 
     let timer1 = TimerGroup::new(peripherals.TIMG0);
-    // let _init = esp_wifi::init(
-    //     timer1.timer0,
-    //     esp_hal::rng::Rng::new(peripherals.RNG),
-    //     peripherals.RADIO_CLK,
-    // )
-    // .unwrap();
     let mut rng = Rng::new(peripherals.RNG);
     let esp_wifi_ctrl = &*mk_static!(
         EspWifiController<'static>,
@@ -76,10 +98,7 @@ async fn main(spawner: Spawner) {
     let tls_seed = rng.random() as u64 | ((rng.random() as u64) << 32);
 
     let dhcp_config = DhcpConfig::default();
-    // dhcp_config.hostname = Some(String::from_str("implRust").unwrap());
-
     let config = embassy_net::Config::dhcpv4(dhcp_config);
-    // Init network stack
     let (stack, runner) = embassy_net::new(
         wifi_interface,
         config,
@@ -92,7 +111,19 @@ async fn main(spawner: Spawner) {
 
     wait_for_connection(stack).await;
 
-    access_website(stack, tls_seed).await
+    loop {
+        if check_time_window(stack, tls_seed).await {
+            println!("Within operational window (9:30am-11:30pm)");
+            // ****************************************************
+            // MAIN APPLICATION LOGIC GOES HERE
+            // This is where you'll add your sensors and other logic
+            // ****************************************************
+        } else {
+            println!("Outside operational window");
+        }
+        
+        Timer::after_secs(10).await;
+    }
 }
 
 async fn wait_for_connection(stack: Stack<'_>) {
@@ -155,7 +186,7 @@ async fn net_task(mut runner: Runner<'static, WifiDevice<'static>>) {
     runner.run().await
 }
 
-async fn access_website(stack: Stack<'_>, tls_seed: u64)  {
+async fn access_website(stack: Stack<'_>, tls_seed: u64) -> Option<heapless::String<32>> {
     let mut rx_buffer = [0; 16384]; // Increased buffer size
     let mut tx_buffer = [0; 16384]; // Increased buffer size
     let dns = DnsSocket::new(stack);
@@ -197,7 +228,7 @@ async fn access_website(stack: Stack<'_>, tls_seed: u64)  {
         Err(e) => {
             error!("Error creating request");
             println!("Detailed error: {e:?}");
-            return;
+            return None;
         }
     };
 
@@ -209,7 +240,7 @@ async fn access_website(stack: Stack<'_>, tls_seed: u64)  {
         Err(e) => {
             error!("Error sending request");
             println!("{e:?}");
-            return;
+            return None;
         }
     };
 
@@ -218,10 +249,11 @@ async fn access_website(stack: Stack<'_>, tls_seed: u64)  {
 
     // Read the body in chunks
     let mut body_reader = response.body().reader();
+    let mut result_string: Option<heapless::String<32>> = None;
     let mut chunk_count = 0;
     let deadline = embassy_time::Instant::now() + Duration::from_secs(30);
 
-    while embassy_time::Instant::now() < deadline {
+    while embassy_time::Instant::now() < deadline && result_string.is_none() {
         let mut chunk_buffer = [0u8; 512];
         match body_reader.read(&mut chunk_buffer).await {
             Ok(0) => {
@@ -232,8 +264,6 @@ async fn access_website(stack: Stack<'_>, tls_seed: u64)  {
                 chunk_count += 1;
                 match core::str::from_utf8(&chunk_buffer[..len]) {
                     Ok(html_text) => {
-                        // println!("--- Chunk {} ---", chunk_count);
-                        // println!("{}", html_text);
                         if let Some(title) = extract_by_id(&html_text, "clk_hm") {
                             info!("Hour and minutes: {}", &title);
                             if let Some(secs) = extract_by_id(&html_text, "ij0") {
@@ -247,13 +277,11 @@ async fn access_website(stack: Stack<'_>, tls_seed: u64)  {
                                 if let Err(_) = result.push_str(&secs) {
                                     info!("Seconds too long for buffer");
                                 }
-                                println!("{}", result);
-                                // Here you could return/store the result
+                                result_string = Some(result);
                             } else {
                                 info!("Seconds not found for ID 'ij0'");
                             }
                         }
-                        
                     }
                     Err(e) => {
                         info!("Received non-UTF8 data in chunk");
@@ -268,7 +296,8 @@ async fn access_website(stack: Stack<'_>, tls_seed: u64)  {
             }
         }
     }
-    
+
+    result_string
 }
 
 fn extract_tag_content(html: &str, tag_name: &str) -> Option<heapless::String<256>> {
