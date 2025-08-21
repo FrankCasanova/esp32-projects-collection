@@ -4,7 +4,7 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use crate::audios::{AudioClip, FAIRY_CAUTION, WAV_DATA};
+use crate::audios::{AudioClip, FAIRY_CAUTION, WAV_DATA, FAIRY_SONG_1};
 use crate::CURRENT_AUDIO;
 use defmt::info;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -34,6 +34,7 @@ pub async fn audio(
     let pcm_data = match current_audio {
         AudioClip::FairyCaution => &FAIRY_CAUTION[HEADER_SIZE..],
         AudioClip::WavAudio => &WAV_DATA[HEADER_SIZE..],
+        AudioClip::FairySong1 => &FAIRY_SONG_1[HEADER_SIZE..]
     };
     let pcm_len = pcm_data.len();
     println!("PCM Length: {}", pcm_len);

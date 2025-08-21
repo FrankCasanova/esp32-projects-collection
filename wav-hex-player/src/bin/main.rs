@@ -84,7 +84,6 @@ async fn main(spawner: Spawner) {
 
     let mut prev_moisture: Option<u16> = None; // Track previous state
 
-
     loop {
         info!("READING LIGHT DATA");
 
@@ -115,16 +114,16 @@ async fn main(spawner: Spawner) {
             let mut continue_dry_loop = true;
             while continue_dry_loop {
                 Timer::after_secs(10).await;
-                
+
                 // Update light and moisture readings
                 let light_data = nb::block!(adc.read_oneshot(&mut light_pin)).unwrap();
                 let moisture_data = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
                 info!("LIGHT DATA: {}", light_data);
                 info!("MOISTURE DATA: {}", moisture_data);
-                
+
                 // Update dry status
                 let is_dry = moisture_data > 3200;
-                
+
                 // Break if moisture condition changes or light is lost
                 if !is_dry || light_data > 2800 {
                     continue_dry_loop = false;
@@ -141,15 +140,18 @@ async fn main(spawner: Spawner) {
             }
         }
 
-        // Set audio to wav audio for wet condition
-        if !is_dry {
-            let mut guard = CURRENT_AUDIO.lock().await;
-            *guard = AudioClip::WavAudio;
+        if light_data < 2800 {
+            {
+                let mut guard = CURRENT_AUDIO.lock().await;
+                *guard = AudioClip::FairySong1;
+            }
+            AUDIO_TRIGGER.signal(());
+            info!("FAIRY IS SINGING");
         }
 
         prev_moisture = Some(moisture_data); // Update state
-        info!("AWAITING 10 SECS");
-        Timer::after_secs(10).await;
+        info!("AWAITING 20 SECS");
+        Timer::after_secs(20).await;
     }
 }
 
