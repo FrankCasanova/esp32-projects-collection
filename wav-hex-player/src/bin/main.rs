@@ -14,14 +14,12 @@ use embassy_time::Timer;
 use esp_hal::analog::adc::{Adc, AdcCalBasic, AdcCalLine, AdcConfig, Attenuation};
 use esp_hal::clock::CpuClock;
 use esp_hal::dma_buffers;
-use esp_hal::gpio::{DriveStrength, Level, Output, OutputConfig};
 use esp_hal::i2s::master::I2sTx;
 use esp_hal::i2s::master::{DataFormat, I2s, Standard};
 use esp_hal::rng::Rng;
 use esp_hal::time::Rate;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::Blocking;
-use esp_println::{self as _, println};
 use wav_hex_player::audio_task::audio;
 use wav_hex_player::{AudioClip, AUDIO_TRIGGER, CURRENT_AUDIO, DMA_BUFFER_SIZE};
 
