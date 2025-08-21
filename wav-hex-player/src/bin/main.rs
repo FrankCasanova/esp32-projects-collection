@@ -17,6 +17,7 @@ use esp_hal::dma_buffers;
 use esp_hal::gpio::{DriveStrength, Level, Output, OutputConfig};
 use esp_hal::i2s::master::I2sTx;
 use esp_hal::i2s::master::{DataFormat, I2s, Standard};
+use esp_hal::rng::Rng;
 use esp_hal::time::Rate;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::Blocking;
@@ -47,6 +48,9 @@ async fn main(spawner: Spawner) {
 
     let timer0 = SystemTimer::new(peripherals.SYSTIMER);
     esp_hal_embassy::init(timer0.alarm0);
+
+    let mut rng = Rng::new(peripherals.RNG);
+
 
     info!("Embassy initialized!");
 
@@ -82,7 +86,13 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(audio(&AUDIO_MACHINE, tx_buffer)).unwrap();
 
-    let mut prev_moisture: Option<u16> = None; // Track previous state
+    let mut prev_moisture: Option<u16> = None;
+     // Track previous state
+    let songs = [
+        AudioClip::FairySong1,
+        AudioClip::FairySong2,
+        AudioClip::FairySong3
+    ];
 
     loop {
         info!("READING LIGHT DATA");
@@ -141,17 +151,20 @@ async fn main(spawner: Spawner) {
         }
 
         if light_data < 2800 {
+            let random_index = (rng.random() as usize) % songs.len();
+            let selected_song = songs[random_index];
+            
             {
                 let mut guard = CURRENT_AUDIO.lock().await;
-                *guard = AudioClip::FairySong1;
+                *guard = selected_song;
             }
             AUDIO_TRIGGER.signal(());
-            info!("FAIRY IS SINGING");
+            info!("FAIRY IS SINGING RANDOM SONG: {}", random_index);
         }
 
         prev_moisture = Some(moisture_data); // Update state
         info!("AWAITING 20 SECS");
-        Timer::after_secs(20).await;
+        Timer::after_secs(300).await;
     }
 }
 
