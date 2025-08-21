@@ -11,9 +11,10 @@ use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::Timer;
-use esp_hal::analog::adc::{Adc, AdcCalBasic, AdcConfig, Attenuation};
+use esp_hal::analog::adc::{Adc, AdcCalBasic, AdcCalLine, AdcConfig, Attenuation};
 use esp_hal::clock::CpuClock;
 use esp_hal::dma_buffers;
+use esp_hal::gpio::{DriveStrength, Level, Output, OutputConfig};
 use esp_hal::i2s::master::I2sTx;
 use esp_hal::i2s::master::{DataFormat, I2s, Standard};
 use esp_hal::time::Rate;
@@ -21,7 +22,7 @@ use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::Blocking;
 use esp_println::{self as _, println};
 use wav_hex_player::audio_task::audio;
-use wav_hex_player::{AudioClip, CURRENT_AUDIO, AUDIO_TRIGGER, DMA_BUFFER_SIZE};
+use wav_hex_player::{AudioClip, AUDIO_TRIGGER, CURRENT_AUDIO, DMA_BUFFER_SIZE};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -60,12 +61,12 @@ async fn main(spawner: Spawner) {
         Rate::from_hz(11025),
         dma_channel,
     );
-    let i2s = i2s.with_mclk(peripherals.GPIO0); // MCLK not used but required by driver
+    let i2s = i2s.with_mclk(peripherals.GPIO5); // MCLK not used but required by driver
     let i2s_tx: esp_hal::i2s::master::I2sTx<'_, esp_hal::Blocking> = i2s
         .i2s_tx
-        .with_bclk(peripherals.GPIO1)
-        .with_ws(peripherals.GPIO2)
-        .with_dout(peripherals.GPIO3)
+        .with_bclk(peripherals.GPIO21)
+        .with_ws(peripherals.GPIO20)
+        .with_dout(peripherals.GPIO10)
         .build(tx_descriptors);
 
     {
@@ -73,42 +74,82 @@ async fn main(spawner: Spawner) {
     }
 
     let mut adc_config = AdcConfig::new();
-    let mut adc_pin =
-        adc_config.enable_pin_with_cal::<_, AdcCalBasic<_>>(peripherals.GPIO4, Attenuation::_11dB);
+    let mut light_pin =
+        adc_config.enable_pin_with_cal::<_, AdcCalLine<_>>(peripherals.GPIO1, Attenuation::_11dB);
+    let mut moisture_pin =
+        adc_config.enable_pin_with_cal::<_, AdcCalBasic<_>>(peripherals.GPIO0, Attenuation::_11dB);
     let mut adc = Adc::new(peripherals.ADC1, adc_config);
 
     spawner.spawn(audio(&AUDIO_MACHINE, tx_buffer)).unwrap();
 
     let mut prev_moisture: Option<u16> = None; // Track previous state
 
+
     loop {
-        Timer::after_secs(4).await;
-        info!("WAITING FINISHED");
-        
-        let lecture = nb::block!(adc.read_oneshot(&mut adc_pin)).unwrap();
-        let is_dry = lecture > 3200;
-        
-        // Check state transition to dry
-        while is_dry && prev_moisture.map(|prev| prev <= 3200).unwrap_or(true) {
-            // Set audio to fairy caution for dry condition
-            {
-                let mut guard = CURRENT_AUDIO.lock().await;
-                *guard = AudioClip::FairyCaution;
+        info!("READING LIGHT DATA");
+
+        let light_data = nb::block!(adc.read_oneshot(&mut light_pin)).unwrap();
+        info!("LIGHT DATA READED: {}", light_data);
+
+        // Always read moisture data regardless of light
+        let moisture_data = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
+        info!("MOISTURE DATA READED: {}", moisture_data);
+
+        let is_dry = moisture_data > 3200;
+
+        // Handle dry condition only when there's light
+        if light_data < 2800 && is_dry {
+            // Check state transition to dry
+            if prev_moisture.map(|prev| prev <= 3200).unwrap_or(true) {
+                // Set audio to fairy caution for dry condition
+                {
+                    let mut guard = CURRENT_AUDIO.lock().await;
+                    *guard = AudioClip::FairyCaution;
+                }
+                AUDIO_TRIGGER.signal(());
+                info!("SIGNAL SENT");
+                info!("Plant needs water (value: {})", moisture_data);
             }
-            AUDIO_TRIGGER.signal(());
-            info!("SIGNAL SENT");
-            info!("Plant needs water (value: {})", lecture);
-            Timer::after_secs(10).await
+
+            // Continue dry-condition handling while light is present and still dry
+            let mut continue_dry_loop = true;
+            while continue_dry_loop {
+                Timer::after_secs(10).await;
+                
+                // Update light and moisture readings
+                let light_data = nb::block!(adc.read_oneshot(&mut light_pin)).unwrap();
+                let moisture_data = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
+                info!("LIGHT DATA: {}", light_data);
+                info!("MOISTURE DATA: {}", moisture_data);
+                
+                // Update dry status
+                let is_dry = moisture_data > 3200;
+                
+                // Break if moisture condition changes or light is lost
+                if !is_dry || light_data > 2800 {
+                    continue_dry_loop = false;
+                } else {
+                    // Continue playing dry audio
+                    {
+                        let mut guard = CURRENT_AUDIO.lock().await;
+                        *guard = AudioClip::FairyCaution;
+                    }
+                    AUDIO_TRIGGER.signal(());
+                    info!("SIGNAL SENT");
+                    info!("Plant needs water (value: {})", moisture_data);
+                }
+            }
         }
-        
+
         // Set audio to wav audio for wet condition
         if !is_dry {
             let mut guard = CURRENT_AUDIO.lock().await;
             *guard = AudioClip::WavAudio;
         }
-        
-        prev_moisture = Some(lecture); // Update state
-        println!("{}", prev_moisture.unwrap())
+
+        prev_moisture = Some(moisture_data); // Update state
+        info!("AWAITING 10 SECS");
+        Timer::after_secs(10).await;
     }
 }
 
