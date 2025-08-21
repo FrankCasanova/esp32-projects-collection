@@ -4,7 +4,7 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use crate::audios::{AudioClip, FAIRY_CAUTION, WAV_DATA, FAIRY_SONG_1};
+use crate::audios::{AudioClip, FAIRY_CAUTION, FAIRY_SONG_1, WAV_DATA, FAIRY_SONG_2, FAIRY_SONG_3};
 use crate::CURRENT_AUDIO;
 use defmt::info;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -14,9 +14,9 @@ use esp_hal::Blocking;
 use esp_println::{self as _, println};
 
 use crate::AUDIO_TRIGGER;
-use crate::{HEADER_SIZE, DMA_BUFFER_SIZE};
+use crate::{DMA_BUFFER_SIZE, HEADER_SIZE};
 
- // Or whatever size dma_buffers! creates 4 * 4092 * 4
+// Or whatever size dma_buffers! creates 4 * 4092 * 4
 // static AUDIO_TRIGGER: Signal<CriticalSectionRawMutex, ()> = Signal::new(); // Replace AUDIO_ENABLED
 
 #[embassy_executor::task]
@@ -25,24 +25,28 @@ pub async fn audio(
     tx_buffer: &'static mut [u8],
 ) {
     // Get current audio selection
-    let current_audio = {
-        let guard = CURRENT_AUDIO.lock().await;
-        *guard
-    };
-
-    // Select audio clip based on current selection
-    let pcm_data = match current_audio {
-        AudioClip::FairyCaution => &FAIRY_CAUTION[HEADER_SIZE..],
-        AudioClip::WavAudio => &WAV_DATA[HEADER_SIZE..],
-        AudioClip::FairySong1 => &FAIRY_SONG_1[HEADER_SIZE..]
-    };
-    let pcm_len = pcm_data.len();
-    println!("PCM Length: {}", pcm_len);
-
     loop {
+        AUDIO_TRIGGER.wait().await;
+        let current_audio = {
+            let guard = CURRENT_AUDIO.lock().await;
+            *guard
+        };
+
+        println!("{:?}", current_audio);
+        // Select audio clip based on current selection
+        let pcm_data = match current_audio {
+            AudioClip::FairyCaution => &FAIRY_CAUTION[HEADER_SIZE..],
+            AudioClip::WavAudio => &WAV_DATA[HEADER_SIZE..],
+            AudioClip::FairySong1 => &FAIRY_SONG_1[HEADER_SIZE..],
+            AudioClip::FairySong2 => &FAIRY_SONG_2[HEADER_SIZE..],
+            AudioClip::FairySong3 => &FAIRY_SONG_3[HEADER_SIZE..],
+            AudioClip::None => &[],
+        };
+
+        let pcm_len = pcm_data.len();
+        println!("PCM Length: {}", pcm_len);
         info!("STARTING LOOP FROM AUDIO TASK");
         // Check if audio playback is enabled based on temperature
-        AUDIO_TRIGGER.wait().await;
 
         println!("Temperature condition met. Starting audio playback...");
 

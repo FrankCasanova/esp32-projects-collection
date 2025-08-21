@@ -10,7 +10,7 @@ pub mod audio_task;
 pub use audios::AudioClip;
 
 pub static CURRENT_AUDIO: Mutex<CriticalSectionRawMutex, AudioClip> = 
-    Mutex::new(AudioClip::FairyCaution); // Default to fairy audio
+    Mutex::new(AudioClip::None); // Default to fairy audio
 
 
 pub const HEADER_SIZE: usize = 44;
