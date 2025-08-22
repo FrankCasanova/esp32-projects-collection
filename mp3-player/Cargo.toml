@@ -20,7 +20,7 @@ esp-hal = { version = "=1.0.0-rc.0", features = [
 critical-section = "1.2.0"
 embassy-executor = { version = "0.7.0", features = [
   "defmt",
-  "task-arena-size-20480",
+  "task-arena-size-65536",
 ] }
 embassy-time = { version = "0.4.0", features = ["defmt"] }
 embassy-sync = "0.7.1"
@@ -29,7 +29,6 @@ esp-hal-embassy = { version = "0.9.0", features = ["defmt", "esp32c3"] }
 esp-println = { version = "0.15.0", features = ["defmt-espflash", "esp32c3"] }
 static_cell = "2.1.1"
 nanomp3 = "0.1.1"
-
 [profile.dev]
 # Rust debug is too slow.
 # For debug builds always builds with some optimization
