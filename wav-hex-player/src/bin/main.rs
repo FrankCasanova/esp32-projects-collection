@@ -158,11 +158,13 @@ async fn main(spawner: Spawner) {
             }
             AUDIO_TRIGGER.signal(());
             info!("FAIRY IS SINGING RANDOM SONG: {}", random_index);
+
+            
         }
 
         prev_moisture = Some(moisture_data); // Update state
         info!("AWAITING 20 SECS");
-        Timer::after_secs(300).await;
+        Timer::after_secs(10).await;
     }
 }
 

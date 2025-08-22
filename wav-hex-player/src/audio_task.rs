@@ -4,7 +4,7 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use crate::audios::{AudioClip, FAIRY_CAUTION, FAIRY_SONG_1, WAV_DATA, FAIRY_SONG_2, FAIRY_SONG_3};
+use crate::audios::{AudioClip, FAIRY_CAUTION, FAIRY_SONG_1, FAIRY_SONG_2, FAIRY_SONG_3, MP3_DATA, TEST_16BITS_8000HZ_MONO, WAV_DATA};
 use crate::CURRENT_AUDIO;
 use defmt::info;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -40,6 +40,8 @@ pub async fn audio(
             AudioClip::FairySong1 => &FAIRY_SONG_1[HEADER_SIZE..],
             AudioClip::FairySong2 => &FAIRY_SONG_2[HEADER_SIZE..],
             AudioClip::FairySong3 => &FAIRY_SONG_3[HEADER_SIZE..],
+            AudioClip::Test16Bits8000HzMono => &TEST_16BITS_8000HZ_MONO[HEADER_SIZE..],
+            AudioClip::Mp3Data => &MP3_DATA,
             AudioClip::None => &[],
         };
 

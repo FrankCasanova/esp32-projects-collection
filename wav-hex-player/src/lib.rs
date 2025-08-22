@@ -1,25 +1,20 @@
 #![no_std]
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::signal::Signal;
 use embassy_sync::mutex::Mutex;
+use embassy_sync::signal::Signal;
 
-pub mod audios;
 pub mod audio_task;
+pub mod audios;
 
 pub use audios::AudioClip;
 
-pub static CURRENT_AUDIO: Mutex<CriticalSectionRawMutex, AudioClip> = 
-    Mutex::new(AudioClip::None); // Default to fairy audio
-
+pub static CURRENT_AUDIO: Mutex<CriticalSectionRawMutex, AudioClip> = Mutex::new(AudioClip::None); // Default to fairy audio
 
 pub const HEADER_SIZE: usize = 44;
 pub const DMA_BUFFER_SIZE: usize = 65472;
 
-pub static AUDIO_TRIGGER: Signal<CriticalSectionRawMutex, ()> = Signal::new(); 
-
-
-
+pub static AUDIO_TRIGGER: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 // // Fill DMA buffer with a stereo square wave at a given frequency
 // fn fill_square_wave(buffer: &mut [u8], freq_hz: u32, sample_rate: u32) {
@@ -83,7 +78,7 @@ pub static AUDIO_TRIGGER: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 //     // Optional: If the DMA buffer is significantly larger and you want true looping
 //     // without byte-level wrapping artifacts, calculate how many full loops fit:
-    
+
 //     let full_copies = buffer.len() / data_len;
 //     let remainder = buffer.len() % data_len;
 
@@ -94,7 +89,7 @@ pub static AUDIO_TRIGGER: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 //     }
 //     // Copy the remainder
 //     buffer[full_copies * data_len..].copy_from_slice(&raw_pcm_data[..remainder]);
-    
+
 // }
 
 // // Example for 16-bit Mono -> Stereo (simplified logic)
