@@ -950,15 +950,8 @@ dependencies = [
  "esp-hal",
  "esp-hal-embassy",
  "esp-println",
- "nanomp3",
  "static_cell",
 ]
-
-[[package]]
-name = "nanomp3"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f69bdf7e634dc76798adc292ebd4f6e8e125cde6843a264fe398c52c3f7e8541"
 
 [[package]]
 name = "nb"

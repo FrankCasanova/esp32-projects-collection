@@ -11,7 +11,7 @@ use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::signal::Signal;
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 use esp_hal::dma_buffers;
 use esp_hal::i2s::master::I2sTx;
 use esp_hal::i2s::master::{I2s, Standard};
@@ -21,7 +21,7 @@ use esp_hal::Blocking;
 use esp_hal::{clock::CpuClock, i2s::master::DataFormat};
 use esp_println as _;
 use esp_println::println;
-use nanomp3::{Decoder, FrameInfo, MAX_SAMPLES_PER_FRAME};
+
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -105,7 +105,7 @@ pub async fn audio(
     audio_machine: &'static Mutex<CriticalSectionRawMutex, Option<I2sTx<'static, Blocking>>>,
     tx_buffer: &'static mut [u8],
 ) {
-    let pcm_data = &MP3_DATA;
+    let pcm_data = &WAV_DATA;
     let pcm_len = pcm_data.len();
     println!("PCM Length: {}", pcm_len);
 
@@ -175,8 +175,8 @@ async fn main(spawner: Spawner) {
     let i2s = I2s::new(
         peripherals.I2S0,
         Standard::Philips,
-        DataFormat::Data16Channel16,
-        Rate::from_hz(7000),
+        DataFormat::Data16Channel16, // Mono format
+        Rate::from_hz(7000),  // Use actual sample rate from WAV
         dma_channel,
     );
     let i2s = i2s.with_mclk(peripherals.GPIO5); // MCLK not used but required by driver
@@ -194,7 +194,8 @@ async fn main(spawner: Spawner) {
     spawner.spawn(audio(&AUDIO_MACHINE, tx_buffer)).unwrap();
 
     loop {
-        let info = parse_wav_header(&MP3_DATA);
+        let info = parse_wav_header(&WAV_DATA);
+        AUDIO_TRIGGER.signal(());
         println!("{:?}", info);
         Timer::after_secs(10).await;
     }
@@ -206,7 +207,7 @@ async fn main(spawner: Spawner) {
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-rc.0/examples/src/bin
 }
 
-pub static MP3_DATA: [u8; 18898] = [
+pub static WAV_DATA: [u8; 18898] = [
     0x52, 0x49, 0x46, 0x46, 0xCA, 0x49, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 
 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x40, 0x1F, 0x00, 0x00, 
 0x01, 0x00, 0x08, 0x00, 0x64, 0x61, 0x74, 0x61, 0xA6, 0x49, 0x00, 0x00, 0x80, 0x80, 0x80, 0x80, 

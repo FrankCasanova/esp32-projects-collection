@@ -28,7 +28,8 @@ esp-alloc = { version = "0.8.0", features = ["defmt"] }
 esp-hal-embassy = { version = "0.9.0", features = ["defmt", "esp32c3"] }
 esp-println = { version = "0.15.0", features = ["defmt-espflash", "esp32c3"] }
 static_cell = "2.1.1"
-nanomp3 = "0.1.1"
+
+
 [profile.dev]
 # Rust debug is too slow.
 # For debug builds always builds with some optimization
